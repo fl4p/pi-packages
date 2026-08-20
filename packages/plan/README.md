@@ -25,11 +25,14 @@ pi --plan
 ### Workflow
 
 1. Run `/plan` to enter read-only plan mode
-2. Ask the agent to analyze your code and create a plan
-3. The agent outputs a numbered `Plan:` section
-4. Choose to **Execute**, **Stay** in plan mode, or **Refine**
-5. During execution, progress is tracked via `[DONE:n]` markers
-6. Widget shows completion status in real time
+2. The agent explores the repository and reuses existing patterns before designing changes
+3. If a material decision cannot be discovered, the agent asks a focused question and stays in plan mode
+4. Once decision-complete, the agent outputs Context followed by a final numbered `Plan:` section
+5. Choose to **Execute**, **Stay** in plan mode, or **Refine**
+6. During execution, progress is tracked via `[DONE:n]` markers
+7. The widget shows completion status in real time
+
+The five-phase prompt is adapted from the Claude Code/OpenCode workflow for Pi's capabilities. Pi does not allow a plan-file write or require harness-specific agent names. It offers execution only after the current turn contains extractable plan steps.
 
 ### Commands
 

@@ -19,6 +19,7 @@ import type {
   ExtensionContext,
 } from "@mariozechner/pi-coding-agent";
 import { extractPlanSteps } from "../../src/planner.js";
+import { buildPlanModePrompt } from "../../src/prompt.js";
 import {
   checkPlanToolCall,
   PLAN_CONTROL_TOOLS,
@@ -164,25 +165,7 @@ export default function piPlanExtension(pi: ExtensionAPI): void {
       return {
         message: {
           customType: "pi-plan-context",
-          content: `[PLAN MODE ACTIVE]
-You are in plan mode — a read-only exploration mode for safe code analysis.
-
-Restrictions:
-- Only call these tools: ${PLAN_MODE_TOOLS.join(", ")}
-- Other tools remain registered for prompt-cache stability but are blocked
-- Shell commands are restricted to an allowlist of read-only commands
-
-Instructions:
-- Analyze the codebase and understand the task
-- Ask clarifying questions if needed
-- Output a detailed numbered plan under a "Plan:" header
-
-Plan:
-1. First step description
-2. Second step description
-...
-
-Do NOT attempt to make changes — just describe what you would do.`,
+          content: buildPlanModePrompt(PLAN_MODE_TOOLS),
           display: false,
         },
       };
@@ -252,6 +235,7 @@ After completing a step, include a [DONE:n] tag in your response.`,
     if (planMode !== "plan" || !ctx.hasUI) return;
 
     // Extract todos from last assistant message
+    let producedPlan = false;
     const messages = event.messages as Array<{
       role: string;
       content?: unknown;
@@ -268,9 +252,12 @@ After completing a step, include a [DONE:n] tag in your response.`,
       const extracted = extractPlanSteps(text);
       if (extracted.length > 0) {
         steps = extracted;
+        producedPlan = true;
         persistState();
       }
     }
+
+    if (!producedPlan) return;
 
     // Show plan and prompt for next action
     if (steps.length > 0) {
@@ -286,7 +273,7 @@ After completing a step, include a [DONE:n] tag in your response.`,
     }
 
     const choice = await ctx.ui.select("Plan mode — what next?", [
-      steps.length > 0 ? "Execute the plan" : "Execute the plan (no steps detected)",
+      "Execute the plan",
       "Stay in plan mode",
       "Refine the plan",
     ]);

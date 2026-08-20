@@ -2,10 +2,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import piPlanExtension from "../extensions/plan/index.js";
 
-function harness(branch: unknown[] = []) {
+function harness(branch: unknown[] = [], hasUI = false) {
   const commands = new Map<string, { handler: (args: string, ctx: unknown) => unknown }>();
   const events = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
   let activeToolChanges = 0;
+  let selectCalls = 0;
 
   const pi = {
     appendEntry() {},
@@ -28,7 +29,7 @@ function harness(branch: unknown[] = []) {
   };
 
   const ctx = {
-    hasUI: false,
+    hasUI,
     sessionManager: {
       getBranch() {
         return branch;
@@ -36,6 +37,10 @@ function harness(branch: unknown[] = []) {
     },
     ui: {
       notify() {},
+      async select() {
+        selectCalls += 1;
+        return undefined;
+      },
       setStatus() {},
       setWidget() {},
       theme: {
@@ -53,7 +58,13 @@ function harness(branch: unknown[] = []) {
   };
 
   piPlanExtension(pi as never);
-  return { commands, ctx, events, getActiveToolChanges: () => activeToolChanges };
+  return {
+    commands,
+    ctx,
+    events,
+    getActiveToolChanges: () => activeToolChanges,
+    getSelectCalls: () => selectCalls,
+  };
 }
 
 describe("pi-plan tool activation", () => {
@@ -77,5 +88,58 @@ describe("pi-plan tool activation", () => {
     await sessionStart({}, ctx);
 
     assert.equal(getActiveToolChanges(), 0);
+  });
+
+  it("waits for a final Plan section before offering execution", async () => {
+    const { commands, ctx, events, getSelectCalls } = harness([], true);
+    const toggle = commands.get("plan");
+    const agentEnd = events.get("agent_end")?.[0];
+    assert.ok(toggle);
+    assert.ok(agentEnd);
+
+    await toggle.handler("", ctx);
+    await agentEnd(
+      {
+        messages: [
+          {
+            role: "assistant",
+            content: [{ type: "text", text: "Which compatibility policy should we use?" }],
+          },
+        ],
+      },
+      ctx
+    );
+    assert.equal(getSelectCalls(), 0);
+
+    await agentEnd(
+      {
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "text",
+                text: "Context:\nUse the existing policy.\n\nPlan:\n1. Update the policy\n2. Run the tests",
+              },
+            ],
+          },
+        ],
+      },
+      ctx
+    );
+    assert.equal(getSelectCalls(), 1);
+
+    await agentEnd(
+      {
+        messages: [
+          {
+            role: "assistant",
+            content: [{ type: "text", text: "Which error policy should refine the existing plan?" }],
+          },
+        ],
+      },
+      ctx
+    );
+    assert.equal(getSelectCalls(), 1);
   });
 });
