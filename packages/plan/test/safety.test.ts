@@ -21,14 +21,10 @@ describe("isSafeCommand", () => {
       "printf '%s' hello",
       "wc -l file.txt",
       "sort file.txt",
-      "uniq file.txt",
       "diff a.txt b.txt",
       "jq '.key' file.json",
-      "sed -n '1,10p' file.txt",
-      "awk '{print $1}' file.txt",
       "cut -d: -f1 file.txt",
       "tr a b",
-      "xargs echo",
       "column -t file.txt",
       "file file.txt",
       "stat file.txt",
@@ -37,7 +33,6 @@ describe("isSafeCommand", () => {
       "which node",
       "whereis python",
       "type ls",
-      "env",
       "printenv PATH",
       "uname -a",
       "whoami",
@@ -54,7 +49,6 @@ describe("isSafeCommand", () => {
       "npm list",
       "npm outdated",
       "npm view react",
-      "curl https://example.com",
       "bat file.txt",
     ];
 
@@ -103,6 +97,24 @@ describe("isSafeCommand", () => {
       "vim file.txt",
       "nano file.txt",
       "code .",
+      "echo 'rm /tmp/file' | sh",
+      "printf 'touch /tmp/file' | bash",
+      "echo $(touch /tmp/file)",
+      "cat <(touch /tmp/file)",
+      "find . $PREDICATE",
+      "find . {-delete,-print}",
+      "find . -name *.ts",
+      "find . -delete",
+      "find . -exec rm {} +",
+      "fd file -x rm",
+      "sort file.txt -o output.txt",
+      "git remote add evil https://example.com/repo.git",
+      "git branch new-branch",
+      "npm audit fix",
+      "curl -X DELETE https://example.com/resource",
+      "env sh -c 'rm /tmp/file'",
+      "xargs rm",
+      "awk 'BEGIN { system(\"rm /tmp/file\") }'",
     ];
 
     for (const cmd of blocked) {
@@ -138,6 +150,30 @@ describe("checkCommand", () => {
       assert.equal(result.safe, false);
       assert.ok(result.reason?.includes("shell constructs"));
     });
+
+    it("blocks command substitution", () => {
+      const result = checkCommand("echo $(touch /tmp/file)");
+      assert.equal(result.safe, false);
+      assert.ok(result.reason?.includes("substitution"));
+    });
+
+    it("blocks process substitution", () => {
+      const result = checkCommand("cat <(touch /tmp/file)");
+      assert.equal(result.safe, false);
+      assert.ok(result.reason?.includes("substitution"));
+    });
+
+    it("blocks variable, brace, and glob expansion", () => {
+      for (const command of [
+        "find . $PREDICATE",
+        "find . {-delete,-print}",
+        "find . -name *.ts",
+      ]) {
+        const result = checkCommand(command);
+        assert.equal(result.safe, false);
+        assert.ok(result.reason?.includes("expansion"));
+      }
+    });
   });
 
   describe("redirect blocking", () => {
@@ -171,6 +207,23 @@ describe("checkCommand", () => {
       const result = checkCommand("cat file | grep pattern");
       assert.equal(result.safe, true);
     });
+
+    it("ignores pipe characters inside quotes", () => {
+      const result = checkCommand("grep 'a|b' file.txt | head -n 1");
+      assert.equal(result.safe, true);
+    });
+
+    it("blocks pipe to a shell interpreter", () => {
+      const result = checkCommand("echo 'rm /tmp/file' | sh");
+      assert.equal(result.safe, false);
+      assert.ok(result.reason?.includes("pipeline"));
+    });
+
+    it("blocks conditional pipelines", () => {
+      const result = checkCommand("cat file || rm file");
+      assert.equal(result.safe, false);
+      assert.ok(result.reason?.includes("pipeline"));
+    });
   });
 
   describe("destructive commands", () => {
@@ -179,6 +232,23 @@ describe("checkCommand", () => {
       assert.equal(result.safe, false);
       assert.ok(result.reason?.includes("destructive"));
     });
+
+    for (const command of [
+      "find . -delete",
+      "find . '-delete'",
+      "find . -exec rm {} +",
+      "find . '-exec' rm {} +",
+      "fd file --exec rm",
+      "sort file.txt --output=output.txt",
+      "git diff --output=diff.txt",
+      "npm audit --fix",
+    ]) {
+      it(`blocks write or execute option: ${command}`, () => {
+        const result = checkCommand(command);
+        assert.equal(result.safe, false);
+        assert.ok(result.reason?.includes("write or execute option"));
+      });
+    }
   });
 
   describe("unknown commands", () => {

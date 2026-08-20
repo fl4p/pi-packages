@@ -16,7 +16,7 @@ describe("checkPlanToolCall", () => {
         true
       );
       assert.equal(
-        checkPlanToolCall(tool, { command: "rm /tmp/report.md" }).safe,
+        checkPlanToolCall(tool, { command: "echo 'rm /tmp/report.md' | sh" }).safe,
         false
       );
     }

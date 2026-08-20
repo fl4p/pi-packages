@@ -40,9 +40,11 @@ pi --plan
 
 ### What gets restricted in plan mode
 
-- **Allowed tools**: `read`, `grep`, `find`, `ls`, and background-job controls
+- **Allowed tools**: `read`, `grep`, `find`, `ls`, and background-job controls when registered
 - **Shell runners**: `bash`, `bash_background`, and `monitor` accept only read-only commands
-- **Blocked**: All other tool calls, file modifications, git writes, package installs, sudo, and editors
+- **Blocked**: All other tool calls, project file modifications, git writes, package installs, sudo, and editors
+
+`bash_background`, `monitor`, `background_list`, and `background_stop` require a separate extension that registers them. Background runners may create extension-owned temporary logs.
 
 Plan mode keeps the active tool schema unchanged and enforces restrictions at call time. Toggling modes therefore preserves extension tools and provider prompt-cache prefixes.
 

@@ -66,12 +66,12 @@ src/progress.ts           — [DONE:n] parsing and completion stats
 
 The active tool schema stays unchanged across mode transitions. Plan mode blocks disallowed calls in the `tool_call` hook, preserving extension tools and provider prompt-cache prefixes.
 
-Allowed tools: read, grep, find, ls, background_list, and background_stop.
+Allowed tools: read, grep, find, ls, background_list, and background_stop. Background tools are usable only when another extension registers them and may create extension-owned temporary logs.
 
 Shell runners `bash`, `bash_background`, and `monitor` share the read-only command policy below. Other tools are blocked by default.
 
 ## Safe commands
 
-Allowed: cat, head, tail, grep, rg, fd, find, ls, pwd, tree, echo, wc, sort, diff, jq, sed -n, awk, stat, du, git status/log/diff/show/branch, npm list/outdated, curl, etc.
+Allowed: cat, head, tail, grep, rg, fd, read-only find, ls, pwd, tree, echo, wc, sort, diff, jq, cut, stat, du, constrained git status/log/diff/show/branch, npm list/outdated, etc. Every pipeline segment is checked independently.
 
-Blocked: rm, mv, cp, mkdir, chmod, git add/commit/push, npm install, sudo, vim, etc.
+Blocked: shell and process substitution; shell interpreters in pipelines; find/fd execution or deletion; output-file options; rm, mv, cp, mkdir, chmod, git writes, npm install/audit fix, network commands, sudo, editors, and unknown commands.
