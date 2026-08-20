@@ -18,16 +18,24 @@ import type {
   ExtensionAPI,
   ExtensionContext,
 } from "@mariozechner/pi-coding-agent";
-import { checkCommand } from "../../src/safety.js";
 import { extractPlanSteps } from "../../src/planner.js";
+import {
+  checkPlanToolCall,
+  PLAN_CONTROL_TOOLS,
+  PLAN_READ_ONLY_TOOLS,
+  PLAN_SHELL_TOOLS,
+} from "../../src/tool-policy.js";
 import {
   markCompletedSteps,
   getCompletionStats,
 } from "../../src/progress.js";
 import type { PlanStep, PlanMode, PlanState } from "../../src/types.js";
 
-const PLAN_MODE_TOOLS = ["read", "bash", "grep", "find", "ls"];
-const NORMAL_MODE_TOOLS = ["read", "bash", "edit", "write"];
+const PLAN_MODE_TOOLS = [
+  ...PLAN_READ_ONLY_TOOLS,
+  ...PLAN_SHELL_TOOLS,
+  ...PLAN_CONTROL_TOOLS,
+];
 
 export default function piPlanExtension(pi: ExtensionAPI): void {
   let planMode: PlanMode = "normal";
@@ -49,7 +57,7 @@ export default function piPlanExtension(pi: ExtensionAPI): void {
       const lines = steps.map((item) =>
         item.completed
           ? ctx.ui.theme.fg("success", "☑ ") +
-            ctx.ui.theme.muted(ctx.ui.theme.strikethrough(item.text))
+            ctx.ui.theme.fg("muted", ctx.ui.theme.strikethrough(item.text))
           : `${ctx.ui.theme.fg("muted", "☐ ")}${item.text}`
       );
       ctx.ui.setWidget("pi-plan-todos", lines);
@@ -67,14 +75,12 @@ export default function piPlanExtension(pi: ExtensionAPI): void {
       // Turning off plan mode
       planMode = "normal";
       steps = [];
-      pi.setActiveTools(NORMAL_MODE_TOOLS);
       ctx.ui.notify("Plan mode disabled. Full access restored.");
     } else {
       // Turning on plan mode (from normal or execute)
       planMode = "plan";
       steps = [];
-      pi.setActiveTools(PLAN_MODE_TOOLS);
-      ctx.ui.notify(`Plan mode enabled. Tools: ${PLAN_MODE_TOOLS.join(", ")}`);
+      ctx.ui.notify(`Plan mode enabled. Allowed tools: ${PLAN_MODE_TOOLS.join(", ")}`);
     }
     persistState();
     updateUI(ctx);
@@ -121,21 +127,9 @@ export default function piPlanExtension(pi: ExtensionAPI): void {
   pi.on("tool_call", async (event) => {
     if (planMode !== "plan") return;
 
-    // Block write/edit tools entirely
-    if (event.toolName === "write" || event.toolName === "edit") {
-      return {
-        block: true,
-        reason: "Plan mode active. File modifications blocked. Use /plan to disable.",
-      };
-    }
-
-    // Bash safety: multi-layer check
-    if (event.toolName === "bash") {
-      const command = event.input.command as string;
-      const result = checkCommand(command);
-      if (!result.safe) {
-        return { block: true, reason: result.reason };
-      }
+    const result = checkPlanToolCall(event.toolName, event.input);
+    if (!result.safe) {
+      return { block: true, reason: result.reason };
     }
   });
 
@@ -174,9 +168,9 @@ export default function piPlanExtension(pi: ExtensionAPI): void {
 You are in plan mode — a read-only exploration mode for safe code analysis.
 
 Restrictions:
-- You can only use: read, bash, grep, find, ls
-- You CANNOT use: edit, write (file modifications are disabled)
-- Bash is restricted to an allowlist of read-only commands
+- Only call these tools: ${PLAN_MODE_TOOLS.join(", ")}
+- Other tools remain registered for prompt-cache stability but are blocked
+- Shell commands are restricted to an allowlist of read-only commands
 
 Instructions:
 - Analyze the codebase and understand the task
@@ -249,7 +243,6 @@ After completing a step, include a [DONE:n] tag in your response.`,
         );
         planMode = "normal";
         steps = [];
-        pi.setActiveTools(NORMAL_MODE_TOOLS);
         persistState();
         updateUI(ctx);
       }
@@ -300,7 +293,6 @@ After completing a step, include a [DONE:n] tag in your response.`,
 
     if (choice?.startsWith("Execute")) {
       planMode = steps.length > 0 ? "execute" : "normal";
-      pi.setActiveTools(NORMAL_MODE_TOOLS);
       persistState();
       updateUI(ctx);
 
@@ -380,9 +372,6 @@ After completing a step, include a [DONE:n] tag in your response.`,
       markCompletedSteps(allText, steps);
     }
 
-    if (planMode === "plan") {
-      pi.setActiveTools(PLAN_MODE_TOOLS);
-    }
     updateUI(ctx);
   });
 }

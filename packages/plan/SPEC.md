@@ -6,11 +6,11 @@ Plan mode for pi — a read-only exploration mode for safe code analysis and str
 
 ## Modes
 
-| Mode | Tools | Description |
-|------|-------|-------------|
-| **normal** | read, bash, edit, write | Default — full access |
-| **plan** | read, bash (whitelist), grep, find, ls | Read-only exploration |
-| **execute** | read, bash, edit, write | Full access + progress tracking |
+| Mode | Tool calls | Description |
+|------|------------|-------------|
+| **normal** | Unrestricted | Default — full access |
+| **plan** | Read-only allowlist | Read-only exploration |
+| **execute** | Unrestricted | Full access + progress tracking |
 
 ## Commands
 
@@ -44,7 +44,7 @@ normal ──/plan──► plan ──"Execute"──► execute ──(all don
 3. LLM analyzes codebase and outputs a `Plan:` section with numbered steps
 4. Steps are extracted and displayed in a widget
 5. User chooses: Execute / Stay / Refine
-6. On execute: tools restored, progress tracked via `[DONE:n]` markers
+6. On execute: call restrictions are removed and progress is tracked via `[DONE:n]` markers
 7. When all steps complete: notification, return to normal mode
 
 ## State
@@ -56,12 +56,21 @@ State is persisted via `pi.appendEntry("pi-plan", ...)` with branch-aware restor
 ```
 extensions/plan/index.ts  — Extension entry (commands, events, UI)
 src/types.ts              — PlanState, PlanStep, PlanMode
-src/safety.ts             — Bash command safety (whitelist/blacklist)
+src/safety.ts             — Shell command safety (whitelist/blacklist)
+src/tool-policy.ts        — Plan-mode tool-call allowlist
 src/planner.ts            — Extract plan steps from LLM output
 src/progress.ts           — [DONE:n] parsing and completion stats
 ```
 
-## Safe Commands (plan mode bash whitelist)
+## Plan-mode tool policy
+
+The active tool schema stays unchanged across mode transitions. Plan mode blocks disallowed calls in the `tool_call` hook, preserving extension tools and provider prompt-cache prefixes.
+
+Allowed tools: read, grep, find, ls, background_list, and background_stop.
+
+Shell runners `bash`, `bash_background`, and `monitor` share the read-only command policy below. Other tools are blocked by default.
+
+## Safe commands
 
 Allowed: cat, head, tail, grep, rg, fd, find, ls, pwd, tree, echo, wc, sort, diff, jq, sed -n, awk, stat, du, git status/log/diff/show/branch, npm list/outdated, curl, etc.
 
