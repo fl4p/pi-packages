@@ -6,6 +6,7 @@ function harness(branch: unknown[] = [], hasUI = false) {
   const commands = new Map<string, { handler: (args: string, ctx: unknown) => unknown }>();
   const events = new Map<string, Array<(event: unknown, ctx: unknown) => unknown>>();
   let activeToolChanges = 0;
+  let registeredTools = 0;
   let selectCalls = 0;
 
   const pi = {
@@ -21,6 +22,9 @@ function harness(branch: unknown[] = [], hasUI = false) {
     },
     registerFlag() {},
     registerShortcut() {},
+    registerTool() {
+      registeredTools += 1;
+    },
     sendMessage() {},
     sendUserMessage() {},
     setActiveTools() {
@@ -63,13 +67,14 @@ function harness(branch: unknown[] = [], hasUI = false) {
     ctx,
     events,
     getActiveToolChanges: () => activeToolChanges,
+    getRegisteredTools: () => registeredTools,
     getSelectCalls: () => selectCalls,
   };
 }
 
 describe("pi-plan tool activation", () => {
   it("keeps the active tool schema unchanged when toggling plan mode", async () => {
-    const { commands, ctx, getActiveToolChanges } = harness();
+    const { commands, ctx, getActiveToolChanges, getRegisteredTools } = harness();
     const toggle = commands.get("plan");
     assert.ok(toggle);
 
@@ -77,17 +82,19 @@ describe("pi-plan tool activation", () => {
     await toggle.handler("", ctx);
 
     assert.equal(getActiveToolChanges(), 0);
+    assert.equal(getRegisteredTools(), 1);
   });
 
   it("keeps the active tool schema unchanged when restoring plan mode", async () => {
     const branch = [{ type: "custom", customType: "pi-plan", data: { mode: "plan", steps: [] } }];
-    const { ctx, events, getActiveToolChanges } = harness(branch);
+    const { ctx, events, getActiveToolChanges, getRegisteredTools } = harness(branch);
     const sessionStart = events.get("session_start")?.[0];
     assert.ok(sessionStart);
 
     await sessionStart({}, ctx);
 
     assert.equal(getActiveToolChanges(), 0);
+    assert.equal(getRegisteredTools(), 1);
   });
 
   it("waits for a final Plan section before offering execution", async () => {

@@ -26,13 +26,25 @@ pi --plan
 
 1. Run `/plan` to enter read-only plan mode
 2. The agent explores the repository and reuses existing patterns before designing changes
-3. If a material decision cannot be discovered, the agent asks a focused question and stays in plan mode
+3. If material decisions cannot be discovered, the agent opens one questionnaire containing up to four related questions
 4. Once decision-complete, the agent outputs Context followed by a final numbered `Plan:` section
 5. Choose to **Execute**, **Stay** in plan mode, or **Refine**
 6. During execution, progress is tracked via `[DONE:n]` markers
 7. The widget shows completion status in real time
 
 The five-phase prompt is adapted from the Claude Code/OpenCode workflow for Pi's capabilities. Pi does not allow a plan-file write or require harness-specific agent names. It offers execution only after the current turn contains extractable plan steps.
+
+### Planning questions
+
+`plan_question` provides Claude-style batched clarification in TUI mode:
+
+- 1–4 related questions per dialog
+- 2–4 described options per question
+- Single-select or multi-select per question
+- A freeform answer for every question
+- Editable question tabs and a final Review submission
+
+The agent investigates discoverable facts before opening the questionnaire. Submitted answers are authoritative. Cancelling or aborting leaves the decision unresolved and prevents a final plan; when interactive UI is unavailable, the agent asks the same questions in plain text instead.
 
 ### Commands
 
@@ -43,7 +55,7 @@ The five-phase prompt is adapted from the Claude Code/OpenCode workflow for Pi's
 
 ### What gets restricted in plan mode
 
-- **Allowed tools**: `read`, `grep`, `find`, `ls`, and background-job controls when registered
+- **Allowed tools**: `read`, `grep`, `find`, `ls`, `plan_question`, and background-job controls when registered
 - **Shell runners**: `bash`, `bash_background`, and `monitor` accept only read-only commands
 - **Blocked**: All other tool calls, project file modifications, git writes, package installs, sudo, and editors
 

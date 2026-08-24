@@ -28,9 +28,10 @@ describe("checkPlanToolCall", () => {
     assert.match(result.reason ?? "", /command string/);
   });
 
-  it("allows background job inspection and cleanup", () => {
+  it("allows plan controls and interactive planning questions", () => {
     assert.deepEqual(checkPlanToolCall("background_list", {}), { safe: true });
     assert.deepEqual(checkPlanToolCall("background_stop", { id: "bg-0" }), { safe: true });
+    assert.deepEqual(checkPlanToolCall("plan_question", { questions: [] }), { safe: true });
   });
 
   it("blocks mutation and unknown extension tools", () => {

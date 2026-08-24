@@ -20,6 +20,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { extractPlanSteps } from "../../src/planner.js";
 import { buildPlanModePrompt } from "../../src/prompt.js";
+import { registerPlanQuestionTool } from "./question-tool.js";
 import {
   checkPlanToolCall,
   PLAN_CONTROL_TOOLS,
@@ -41,6 +42,8 @@ const PLAN_MODE_TOOLS = [
 export default function piPlanExtension(pi: ExtensionAPI): void {
   let planMode: PlanMode = "normal";
   let steps: PlanStep[] = [];
+
+  registerPlanQuestionTool(pi, () => planMode);
 
   // --- Helpers ---
 

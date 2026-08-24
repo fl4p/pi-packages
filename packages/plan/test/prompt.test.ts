@@ -21,7 +21,21 @@ describe("buildPlanModePrompt", () => {
     assert.match(prompt, /### Phase 4: Final plan/);
     assert.match(prompt, /### Phase 5: Handoff/);
     assert.match(prompt, /resolve facts.*before asking the user/i);
-    assert.match(prompt, /Do not emit a final Plan: section on a clarification turn/);
+    assert.match(prompt, /Do not emit a final Plan: section while any material decision remains unresolved/);
+  });
+
+  it("defines Claude-style batched question and result handling", () => {
+    const prompt = buildPlanModePrompt(["read", "plan_question"]);
+
+    assert.match(prompt, /Batch 1–4 related questions/);
+    assert.match(prompt, /2–4 options per question/);
+    assert.match(prompt, /recommended option first.*\(Recommended\)/i);
+    assert.match(prompt, /multiSelect.*only when multiple choices can validly coexist/);
+    assert.match(prompt, /one plan_question call at a time/);
+    assert.match(prompt, /PLAN_QUESTION_STATUS: answered.*authoritative/);
+    assert.match(prompt, /PLAN_QUESTION_STATUS: cancelled.*do not re-ask/i);
+    assert.match(prompt, /PLAN_QUESTION_STATUS: unavailable.*plain text/i);
+    assert.match(prompt, /PLAN_QUESTION_STATUS: aborted.*no assumptions/i);
   });
 
   it("uses Pi's final response and UI handoff contract", () => {

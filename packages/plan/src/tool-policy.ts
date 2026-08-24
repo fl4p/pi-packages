@@ -2,7 +2,11 @@ import { checkCommand } from "./safety.js";
 
 export const PLAN_READ_ONLY_TOOLS = ["read", "grep", "find", "ls"] as const;
 export const PLAN_SHELL_TOOLS = ["bash", "bash_background", "monitor"] as const;
-export const PLAN_CONTROL_TOOLS = ["background_list", "background_stop"] as const;
+export const PLAN_CONTROL_TOOLS = [
+  "background_list",
+  "background_stop",
+  "plan_question",
+] as const;
 
 const readOnlyTools = new Set<string>(PLAN_READ_ONLY_TOOLS);
 const shellTools = new Set<string>(PLAN_SHELL_TOOLS);
