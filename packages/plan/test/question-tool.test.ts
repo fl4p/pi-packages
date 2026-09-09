@@ -359,26 +359,131 @@ describe("registerPlanQuestionTool", () => {
     );
   });
 
-  it("returns unavailable without UI and when custom UI has no result", async () => {
+  it("returns unavailable without UI and when the TUI questionnaire has no result", async () => {
     const { tool } = registeredTool();
     const noUi = await tool.execute(
       "call",
       { questions: [question()] },
       undefined,
       undefined,
-      { hasUI: false, ui: { async custom() { return undefined; } } }
+      { hasUI: false, mode: "tui", ui: { async custom() { return undefined; } } }
     );
     assert.equal(noUi.details.status, "unavailable");
     assert.match(noUi.content[0].text, /ask the same questions in plain text/i);
 
-    const rpc = await tool.execute(
+    const dismissed = await tool.execute(
       "call",
       { questions: [question()] },
       undefined,
       undefined,
-      { hasUI: true, ui: { async custom() { return undefined; } } }
+      { hasUI: true, mode: "tui", ui: { async custom() { return undefined; } } }
     );
-    assert.equal(rpc.details.status, "unavailable");
+    assert.equal(dismissed.details.status, "unavailable");
+  });
+
+  it("returns unavailable when a non-TUI host offers no dialog surface", async () => {
+    const { tool } = registeredTool();
+    const result = await tool.execute(
+      "call",
+      { questions: [question()] },
+      undefined,
+      undefined,
+      { hasUI: true, mode: "print", ui: { async custom() { return undefined; } } }
+    );
+    assert.equal(result.details.status, "unavailable");
+  });
+
+  it("asks through dialogs instead of the TUI questionnaire in rpc mode", async () => {
+    const { tool } = registeredTool();
+    const titles: string[] = [];
+    let customCalls = 0;
+    const result = await tool.execute(
+      "call",
+      { questions: [question()] },
+      undefined,
+      undefined,
+      {
+        hasUI: true,
+        mode: "rpc",
+        ui: {
+          async custom() {
+            customCalls += 1;
+            return undefined;
+          },
+          async select(title: string, options: string[]) {
+            titles.push(title);
+            return options[1];
+          },
+          async input() {
+            return undefined;
+          },
+        },
+      }
+    );
+
+    assert.equal(customCalls, 0);
+    assert.deepEqual(titles, ["Runtime: Which runtime should we use?"]);
+    assert.equal(result.details.status, "answered");
+    assert.deepEqual(result.details.answers, [
+      { id: "runtime", selections: ["Bun"] },
+    ]);
+    assert.match(result.content[0].text, /PLAN_QUESTION_STATUS: answered/);
+  });
+
+  it("falls back to dialogs when a host too old to report its mode has no component", async () => {
+    const { tool } = registeredTool();
+    let customCalls = 0;
+    const result = await tool.execute(
+      "call",
+      { questions: [question()] },
+      undefined,
+      undefined,
+      {
+        hasUI: true,
+        ui: {
+          async custom() {
+            customCalls += 1;
+            return undefined;
+          },
+          async select(_title: string, options: string[]) {
+            return options[0];
+          },
+          async input() {
+            return undefined;
+          },
+        },
+      }
+    );
+
+    assert.equal(customCalls, 1);
+    assert.equal(result.details.status, "answered");
+    assert.deepEqual(result.details.answers, [
+      { id: "runtime", selections: ["Node"] },
+    ]);
+  });
+
+  it("reports cancelled when an rpc dialog is dismissed", async () => {
+    const { tool } = registeredTool();
+    const result = await tool.execute(
+      "call",
+      { questions: [question()] },
+      undefined,
+      undefined,
+      {
+        hasUI: true,
+        mode: "rpc",
+        ui: {
+          async select() {
+            return undefined;
+          },
+          async input() {
+            return undefined;
+          },
+        },
+      }
+    );
+    assert.equal(result.details.status, "cancelled");
+    assert.match(result.content[0].text, /Do not re-ask/);
   });
 
   it("returns aborted before opening UI", async () => {
@@ -393,6 +498,7 @@ describe("registerPlanQuestionTool", () => {
       undefined,
       {
         hasUI: true,
+        mode: "tui",
         ui: {
           async custom() {
             customCalls += 1;
@@ -418,7 +524,7 @@ describe("registerPlanQuestionTool", () => {
       { questions: [question()] },
       undefined,
       undefined,
-      { hasUI: true, ui: { async custom<T>() { return answered as T; } } }
+      { hasUI: true, mode: "tui", ui: { async custom<T>() { return answered as T; } } }
     );
     assert.match(answerResult.content[0].text, /PLAN_QUESTION_STATUS: answered/);
     assert.match(answerResult.content[0].text, /runtime.*Node/);
@@ -433,7 +539,7 @@ describe("registerPlanQuestionTool", () => {
       { questions: [question()] },
       undefined,
       undefined,
-      { hasUI: true, ui: { async custom<T>() { return cancelled as T; } } }
+      { hasUI: true, mode: "tui", ui: { async custom<T>() { return cancelled as T; } } }
     );
     assert.match(cancelResult.content[0].text, /PLAN_QUESTION_STATUS: cancelled/);
     assert.match(cancelResult.content[0].text, /Do not re-ask/);

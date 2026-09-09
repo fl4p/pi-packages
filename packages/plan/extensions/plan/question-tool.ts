@@ -15,6 +15,10 @@ import {
 } from "@mariozechner/pi-tui";
 import { Type } from "typebox";
 import {
+  runPlanQuestionDialogs,
+  supportsPlanQuestionDialogs,
+} from "../../src/dialog-questions.js";
+import {
   formatPlanQuestionAnswers,
   normalizePlanQuestions,
   PlanQuestionnaireState,
@@ -449,21 +453,44 @@ export function registerPlanQuestionTool(
         return { content: [{ type: "text", text: statusText("unavailable") }], details: result };
       }
 
+      // `ui.custom` renders a TUI component, which only interactive mode
+      // implements; RPC embedders (Paseo and friends) return undefined from it
+      // and the questionnaire used to be reported as unavailable. `ui.select`
+      // and `ui.input` do travel over the extension UI protocol, so ask
+      // one dialog at a time wherever the component cannot render.
+      //
+      // `ctx.mode` was added after this extension's peer floor, so an absent
+      // mode means "unknown host": try the component and fall back on it
+      // returning nothing, which is exactly what a non-TUI host does.
+      const mode = (ctx as ExtensionContext & { mode?: string }).mode;
+      const canRenderComponent = mode === undefined || mode === "tui";
+      const canOpenDialogs = mode !== "tui" && supportsPlanQuestionDialogs(ctx.ui);
+      if (!canRenderComponent && !canOpenDialogs) {
+        const result = resultForStatus(questions, "unavailable");
+        return { content: [{ type: "text", text: statusText("unavailable") }], details: result };
+      }
+
       onUpdate?.({
         content: [{ type: "text", text: "Waiting for planning answers..." }],
         details: undefined,
       });
 
-      const result = await ctx.ui.custom<PlanQuestionnaireResult | undefined>(
-        (tui, theme, _keybindings, done) =>
-          new PlanQuestionnaireComponent(
-            questions,
-            tui,
-            theme,
-            (value) => done(value),
-            signal
-          )
-      );
+      let result: PlanQuestionnaireResult | undefined;
+      if (canRenderComponent) {
+        result = await ctx.ui.custom<PlanQuestionnaireResult | undefined>(
+          (tui, theme, _keybindings, done) =>
+            new PlanQuestionnaireComponent(
+              questions,
+              tui,
+              theme,
+              (value) => done(value),
+              signal
+            )
+        );
+      }
+      if (!result && canOpenDialogs) {
+        result = await runPlanQuestionDialogs(questions, ctx.ui, signal);
+      }
 
       if (!result) {
         const unavailable = resultForStatus(questions, "unavailable");
