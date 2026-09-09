@@ -32,6 +32,9 @@ jobs:
       - name: List workspaces
         run: npm run list
 
+      - name: Test plan package
+        run: npm run test:plan
+
       - name: Pack tavily tools package
         run: npm run pack:tavily-tools
 

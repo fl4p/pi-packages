@@ -36,15 +36,17 @@ The five-phase prompt is adapted from the Claude Code/OpenCode workflow for Pi's
 
 ### Planning questions
 
-`plan_question` provides Claude-style batched clarification in TUI mode:
+`plan_question` provides Claude-style batched clarification:
 
 - 1–4 related questions per dialog
 - 2–4 described options per question
 - Single-select or multi-select per question
 - A freeform answer for every question
-- Editable question tabs and a final Review submission
+- Editable question tabs and a final Review submission (TUI)
 
-The agent investigates discoverable facts before opening the questionnaire. Submitted answers are authoritative. Cancelling or aborting leaves the decision unresolved and prevents a final plan; when interactive UI is unavailable, the agent asks the same questions in plain text instead.
+In TUI mode the questions open as one tabbed questionnaire. Hosts that drive Pi over RPC — Paseo and other embedders — cannot render that component, so the same questions are asked one dialog at a time through `ui.select` and `ui.input`: each option carries its description, freeform answers open a text dialog, and multi-select toggles until you choose Done.
+
+The agent investigates discoverable facts before asking. Submitted answers are authoritative. Cancelling or aborting leaves the decision unresolved and prevents a final plan; only a host with no dialog surface at all falls back to asking in plain text.
 
 ### Commands
 

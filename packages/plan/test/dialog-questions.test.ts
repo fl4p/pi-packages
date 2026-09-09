@@ -130,7 +130,8 @@ describe("runPlanQuestionDialogs", () => {
     );
 
     assert.equal(result.status, "cancelled");
-    // The first answer is dropped: a partial batch must not be acted on.
+    // The answers gathered so far are reported for context, but the cancelled
+    // status is what the model acts on: a partial batch must not be used.
     assert.deepEqual(result.answers, [{ id: "runtime", selections: ["Node"] }]);
     assert.equal(ui.calls.length, 2);
   });
@@ -141,6 +142,32 @@ describe("runPlanQuestionDialogs", () => {
 
     assert.equal(result.status, "cancelled");
     assert.equal(ui.calls.length, 1);
+  });
+
+  it("cancels when the multi-select freeform input is dismissed or blank", async () => {
+    const multi = question({ multiSelect: true });
+
+    const dismissed = await runPlanQuestionDialogs(
+      [multi],
+      scriptedUi([(o) => o[0], FREEFORM_OPTION_LABEL], [undefined])
+    );
+    assert.equal(dismissed.status, "cancelled");
+
+    const blank = await runPlanQuestionDialogs(
+      [multi],
+      scriptedUi([(o) => o[0], FREEFORM_OPTION_LABEL], ["  "])
+    );
+    assert.equal(blank.status, "cancelled");
+  });
+
+  it("only repeats the full question on the first multi-select dialog", async () => {
+    const multi = question({ multiSelect: true });
+    const ui = scriptedUi([(o) => o[0], (o) => o[1], DONE_OPTION_LABEL]);
+    await runPlanQuestionDialogs([multi], ui);
+
+    assert.equal(ui.calls[0].title, "Runtime: Which runtime should we use?");
+    assert.equal(ui.calls[1].title, "Runtime: select more, or finish");
+    assert.equal(ui.calls[2].title, "Runtime: select more, or finish");
   });
 
   it("toggles multi-select options and finishes on Done", async () => {

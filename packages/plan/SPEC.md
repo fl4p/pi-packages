@@ -42,7 +42,7 @@ normal ──/plan──► plan ──"Execute"──► execute ──(all don
 1. User runs `/plan` or `--plan` to enter plan mode
 2. The extension injects a read-only, five-phase planning workflow
 3. The LLM explores the codebase before asking questions whose answers are discoverable
-4. If material decisions remain, the LLM uses `plan_question` for a batch of related choices; cancellation or unresolved answers keep Pi in plan mode without offering execution
+4. If material decisions remain, the LLM uses `plan_question` for a batch of related choices; TUI hosts get the tabbed questionnaire and RPC hosts get one dialog per question, and cancellation or unresolved answers keep Pi in plan mode without offering execution
 5. Once decision-complete, the LLM emits a Context section followed by a final numbered `Plan:` section
 6. Steps are extracted and the user chooses: Execute / Stay / Refine
 7. On execute: call restrictions are removed and progress is tracked via `[DONE:n]` markers
@@ -59,6 +59,7 @@ extensions/plan/index.ts          — Extension entry (commands, events, UI)
 extensions/plan/question-tool.ts  — Batched question tool and TUI component
 src/types.ts                      — Plan and questionnaire types
 src/questions.ts                  — Question validation, answer state, formatting
+src/dialog-questions.ts           — Per-question dialog fallback for non-TUI hosts
 src/safety.ts                     — Shell command safety (whitelist/blacklist)
 src/tool-policy.ts                — Plan-mode tool-call allowlist
 src/prompt.ts                     — Five-phase planning prompt
@@ -76,7 +77,7 @@ The prompt adapts the Claude Code/OpenCode workflow to Pi's capabilities:
 4. **Final plan** — provide Context and a final numbered `Plan:` section with critical files, reusable code, and verification
 5. **Handoff** — end after the plan; Pi presents Execute / Stay / Refine
 
-Pi does not grant a plan-file write exception or require harness-specific agent names. In TUI mode, `plan_question` presents 1–4 related questions with 2–4 described choices each, per-question multi-select, freeform answers, editable tabs, and a Review submission. If interactive UI is unavailable, the assistant falls back to the same questions in plain text. Cancelled or aborted questionnaires never authorize assumptions or a final plan. The handoff dialog appears only when the current turn contains extractable plan steps.
+Pi does not grant a plan-file write exception or require harness-specific agent names. `plan_question` presents 1–4 related questions with 2–4 described choices each, per-question multi-select and freeform answers. In TUI mode these render as one questionnaire with editable tabs and a Review submission; hosts that drive Pi over RPC cannot render that component, so the same questions are asked one `ui.select`/`ui.input` dialog at a time. Only a host offering no dialog surface at all falls back to asking in plain text. Cancelled or aborted questionnaires never authorize assumptions or a final plan. The handoff dialog appears only when the current turn contains extractable plan steps.
 
 The final `Plan:` section must be the last section in the response. Its top-level numbered lines are execution steps; other detail uses unnumbered bullets so the extractor cannot confuse questions or supporting material with steps.
 

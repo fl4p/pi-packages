@@ -141,6 +141,7 @@ async function askMultiSelect(
 ): Promise<PlanQuestionAnswer | undefined> {
   const selections: string[] = [];
   let custom: string | undefined;
+  let first = true;
 
   for (;;) {
     if (signal?.aborted) return undefined;
@@ -158,7 +159,15 @@ async function askMultiSelect(
       ...(hasAnswer ? [DONE_OPTION_LABEL] : []),
     ];
 
-    const choice = await ui.select(dialogTitle(question), choices, {
+    // Each toggle costs another dialog, so only the first one carries the full
+    // question; the repeats keep the header and say what they are for. The
+    // checkboxes already state what has been chosen.
+    const title = first
+      ? dialogTitle(question)
+      : `${question.header}: select more, or finish`;
+    first = false;
+
+    const choice = await ui.select(title, choices, {
       ...(signal ? { signal } : {}),
     });
 
@@ -172,7 +181,11 @@ async function askMultiSelect(
     }
     if (choice === FREEFORM_OPTION_LABEL) {
       const written = await askFreeform(question, ui, signal);
-      if (written) custom = written;
+      // Dismissing any dialog cancels the batch, exactly as it does for a
+      // single-select question. Swallowing it here would leave the user in a
+      // loop they cannot answer their own way and cannot back out of.
+      if (!written) return undefined;
+      custom = written;
       continue;
     }
 
